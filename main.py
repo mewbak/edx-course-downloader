@@ -34,7 +34,7 @@ async def download_video(s: ClientSession, index, path, block):
     name = os.path.join(path, index + "_" + normPath(block["display_name"]))
 
     download_data = []
-    if "transcripts" in block["student_view_data"]:
+    if "transcripts" in block["student_view_data"] and "en" in block["student_view_data"]["transcripts"]:
         download_data.append((block["student_view_data"]["transcripts"]["en"], ".srt"))
 
     if block["student_view_data"]["only_on_web"]:
