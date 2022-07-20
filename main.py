@@ -4,6 +4,7 @@ import os
 from asyncio import create_task, gather, run, sleep
 from aiohttp import ClientSession, TCPConnector
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup as Soup
 
 load_dotenv()
 # edit this
@@ -32,17 +33,25 @@ async def download_html(s: ClientSession, index, path, block):
 async def download_video(s: ClientSession, index, path, block):
     name = os.path.join(path, index + "_" + normPath(block["display_name"]))
 
-    download_data = [
-        # (block["student_view_data"]["encoded_videos"]["hls"]["url"], ".m3u8"),
-        (block["student_view_data"]["transcripts"]["en"], ".srt")
-    ]
+    download_data = []
+    if "transcripts" in block["student_view_data"]:
+        download_data.append((block["student_view_data"]["transcripts"]["en"], ".srt"))
 
-    if "desktop_mp4" in block["student_view_data"]["encoded_videos"]:
-        download_data.append((block["student_view_data"]["encoded_videos"]["desktop_mp4"]["url"], ".mp4"))
+    if block["student_view_data"]["only_on_web"]:
+        await download_html(s, index, path, block)
+        with open(name + ".html", "r") as r:
+            contents = r.read()
+            soup = Soup(contents, "lxml")
+            link = soup.select(".video-download-button")[0]['href']
+            download_data.append((link, ".mp4"))
 
-    if "youtube" in block["student_view_data"]["encoded_videos"]:
-        with open(name+"_youtube.txt", "wb") as f:
-            f.write(block["student_view_data"]["encoded_videos"]["youtube"]["url"].encode("utf-8"))
+    if "encoded_videos" in block["student_view_data"]:
+        if "desktop_mp4" in block["student_view_data"]["encoded_videos"]:
+            download_data.append((block["student_view_data"]["encoded_videos"]["desktop_mp4"]["url"], ".mp4"))
+
+        if "youtube" in block["student_view_data"]["encoded_videos"]:
+            with open(name+"_youtube.txt", "wb") as f:
+                f.write(block["student_view_data"]["encoded_videos"]["youtube"]["url"].encode("utf-8"))
 
     async def func(url, ext):
         async with s.get(url) as r:
@@ -52,9 +61,10 @@ async def download_video(s: ClientSession, index, path, block):
     
     tasks = [create_task(func(url, ext)) for url, ext in download_data]
 
-    if "hls" in block["student_view_data"]["encoded_videos"]:
-        with open(name+"_stream.txt", "wb") as f:
-            f.write(block["student_view_data"]["encoded_videos"]["hls"]["url"].encode("utf-8"))
+    if "encoded_videos" in block["student_view_data"]:
+        if "hls" in block["student_view_data"]["encoded_videos"]:
+            with open(name+"_stream.txt", "wb") as f:
+                f.write(block["student_view_data"]["encoded_videos"]["hls"]["url"].encode("utf-8"))
 
     await gather(*tasks)
 
